@@ -1,0 +1,85 @@
+
+        //حسبة الدمغة
+        //Calc taxes not based on salary relations
+        Server Static void CalculateStampTaxes(CSPPeriodID CSPPeriodID,linenum linenum)
+        {
+            CSPPayslip pemp,p,pi;
+            Amountcur adds,insurance,deducts,net,net1,tax;
+            CSPSalaryTerms t;
+            transdate transdate;
+            CSPPeriodLines pl;
+        
+            pl=CSPPeriodLines::find(CSPPeriodID,linenum);
+        
+            while select pemp group by worker where pemp.CSPPeriodID==CSPPeriodID && pemp.CSPPeriodLine==linenum
+            {
+                if(hcmworker::PayrollApplies(pemp.Worker,pl.Fromdate,pl.Todate))
+                {
+                    select sum (amount) from p where   p.CSPPeriodID==CSPPeriodID
+                                                    && p.CSPPeriodLine==linenum
+                                                    && p.CSPTermType==CSPTermType::Addition
+                                                    && p.Worker==pemp.Worker
+                    join t where   t.CSPSalaryTermID  == p.CSPSalaryTermID
+                                && t.CSPTaxCalculated == noyes::Yes;
+                    adds=p.Amount;
+                    p.clear();
+                    select sum (amount) from p where   p.CSPPeriodID==CSPPeriodID
+                                                    && p.CSPPeriodLine==linenum
+                                                    && p.CSPSalaryTermID==CSPParameters::find().CSPSalaryTermIDInsurance
+                                                    && p.Worker==pemp.Worker;
+        
+                    insurance=p.Amount;
+                    p.clear();
+                    select sum (amount) from p where   p.CSPPeriodID==CSPPeriodID
+                                                    && p.CSPPeriodLine==linenum
+                                                    && p.CSPTermType==CSPTermType::Addition
+                                                    && p.Worker==pemp.Worker
+                    join t where   t.CSPSalaryTermID  == p.CSPSalaryTermID;
+                            //    && t.CSPTaxCalculated == noyes::No;
+                    deducts=p.Amount;
+                     net=adds+insurance;
+                   net1=adds+insurance-deducts+1;
+                        if(adds)
+                        {
+        
+                            net = net - 50;
+                            IF(adds<=(250))
+                            {
+                                tax = (net*0.006);
+                            }
+                            else IF(adds<=(500))
+                            {
+                                tax = (net*0.0065);
+                            }
+                            else IF(adds<=(1000))
+                            {
+                                tax = (net*0.007);
+                            }
+                            else IF(adds<=(5000))
+                            {
+                                tax = (net*0.0075);
+                            }
+                            else IF(adds<=(10000))
+                            {
+                                tax = (net*0.008);
+                            }
+                            else if (net<=(10000))
+                            {
+                                tax = (net*0.008);
+        
+                            }
+                            else IF(adds>(10000))
+                            {
+                                tax = (10000*0.008)+(net-10000)*(0.003);
+                            }
+        
+                    }
+                            transdate=CSPPeriodlines::find(CSPPeriodID,linenum).Todate;
+                            if(tax>0)
+        
+                            pi=CSPPayslip::updateorcreate(pemp.Worker,CSPPeriodID,TransDate,CSpparameters::find().CSPSalaryTermIDStax, roundUp(tax,0.05),Linenum,CSPTermType::Deduction,CSPPaySlipLineType::Constant,CSPTermMethod::Constant);
+        
+        
+                }
+            }
+        }
